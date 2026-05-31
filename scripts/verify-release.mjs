@@ -3,6 +3,7 @@ import fs from "node:fs";
 import process from "node:process";
 
 const expectedPackageName = "@alex-engvall/laravel-debug-mcp";
+const expectedRepositoryUrl = "git+https://github.com/alex-engvall/laravel-debug-mcp.git";
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const root = new URL("../", import.meta.url);
 const failures = [];
@@ -43,6 +44,7 @@ const isPrereleaseVersion = Boolean(semver?.[4]);
 
 check(packageJson.name === expectedPackageName, `package.json name must be ${expectedPackageName}.`);
 check(packageJson.private === false, "package.json private must be false.");
+check(packageJson.repository?.url === expectedRepositoryUrl, `package.json repository.url must be ${expectedRepositoryUrl}.`);
 check(Boolean(semver), `package.json version must be valid semver, got ${String(version)}.`);
 
 if (tag) {
