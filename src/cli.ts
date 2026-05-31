@@ -3,7 +3,7 @@ import { runInit } from "./install/init.js";
 import { runDoctor } from "./install/doctor.js";
 import { rotateKey } from "./install/keys.js";
 
-const VERSION = "0.1.0c.1";
+const VERSION = "0.1.0";
 
 type Parsed = { command?: string; options: Record<string, string | boolean> };
 
