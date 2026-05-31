@@ -13,8 +13,12 @@ function remoteRunnerPath(): string {
   return path.resolve(here, "..", "..", "scripts", "remote", "laravel-diag");
 }
 
+function normalizeLineEndings(value: string): string {
+  return value.replace(/\r\n?/g, "\n");
+}
+
 export async function bootstrapRemote(config: InstallConfig, publicKey: string, dryRun = false): Promise<void> {
-  const runner = await fs.readFile(remoteRunnerPath(), "utf8");
+  const runner = normalizeLineEndings(await fs.readFile(remoteRunnerPath(), "utf8"));
   const runnerB64 = Buffer.from(runner, "utf8").toString("base64");
   const script = `#!/usr/bin/env bash
 set -euo pipefail

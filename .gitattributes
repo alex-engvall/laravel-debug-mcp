@@ -1,0 +1,5 @@
+* text=auto
+
+*.sh text eol=lf
+scripts/remote/laravel-diag text eol=lf
+laravel-prod-mcp/scripts/remote/laravel-diag text eol=lf

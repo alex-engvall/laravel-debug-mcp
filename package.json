@@ -1,5 +1,5 @@
 {
-  "name": "@easydev.se/laravel-debug-mcp",
+  "name": "@alexengvall/laravel-debug-mcp",
   "version": "0.2.0",
   "private": false,
   "type": "module",
