@@ -14,7 +14,7 @@ An **installable CLI + production-safe MCP server** that lets **Codex CLI** run 
 The recommended setup path is the interactive installer:
 
 ```bash
-npx @alemil/laravel-debug-mcp init
+npx @alex-engvall/laravel-debug-mcp init
 ```
 
 The wizard asks for the profile name, server host, SSH setup user, Laravel app path, diagnostic user, SSH key choice, Codex configuration preference, and mutation policy. It then:
@@ -32,7 +32,7 @@ The wizard asks for the profile name, server host, SSH setup user, Laravel app p
 You can also install globally:
 
 ```bash
-npm install -g @alemil/laravel-debug-mcp
+npm install -g @alex-engvall/laravel-debug-mcp
 laravel-debug-mcp init
 ```
 
