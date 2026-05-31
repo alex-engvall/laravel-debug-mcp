@@ -1,362 +1,208 @@
-# laravel-prod-mcp
+# laravel-debug-mcp
 
-A **production-safe MCP server** (STDIO) that lets **Codex CLI** run *common, read-mostly* production diagnostics for a **Laravel** app **without granting shell access**.
+An **installable CLI + production-safe MCP server** that lets **Codex CLI** run common Laravel diagnostics through a hardened SSH remote runner without granting interactive shell access.
 
 ## Architecture
-- Codex CLI ⇄ (stdio) ⇄ this MCP server (runs locally)
-- this MCP server ⇄ (SSH) ⇄ `laravel-diag` remote runner (runs on the production host)
+
+- Codex CLI ⇄ local MCP server over stdio
+- local MCP server ⇄ SSH ⇄ `/usr/local/bin/laravel-diag`
 - `laravel-diag` executes a strict allowlist of diagnostics and returns JSON
+- SSH access can be restricted with an `authorized_keys` forced command
 
-> Why this split? It avoids exposing an MCP server publicly, and it allows you to harden access using SSH + forced command + allowlists.
+## Quick start
 
----
-
-## What you get (tools)
-
-### App / Laravel
-- `health` — checks Laravel health endpoint (`/up` by default)
-- `artisan_version` — `php artisan --version`
-- `artisan_about` — `php artisan about`
-- `artisan_migrate_status` — `php artisan migrate:status`
-- `artisan_schedule_list` — `php artisan schedule:list`
-- `artisan_queue_failed` — `php artisan queue:failed`
-- `artisan_horizon_status` — `php artisan horizon:status` (if installed)
-- `file_list` — lists files/directories under app root (optionally recursive)
-- `file_read` — reads any file under app root by relative path
-- `env_read` — reads Laravel `.env*` file from app root (best-effort redacted)
-
-### Logs
-- `logs_list` — lists log files in `storage/logs`
-- `logs_tail` — tail last N lines (defaults to newest log file)
-- `logs_grep` — fixed-string search in logs (with caps)
-- `logs_last_error` — heuristic "show last error-looking lines"
-
-### System
-- `sys_info` — uname/date/uptime/whoami
-- `sys_disk` — df -h
-- `sys_memory` — free -m (or /proc fallback)
-- `sys_top` — ps snapshots (CPU & memory)
-- `php_version` — php -v
-- `php_extensions` — php -m
-
-### Laravel cache artifacts (safe)
-- `cache_status` — lists `bootstrap/cache/*.php` files with mtime + size
-
-### Database (read-only)
-- `database_connections` — lists configured Laravel DB connections and default
-- `database_schema` — inspects tables/columns/indexes/foreign keys (with optional filter)
-- `database_query` — executes read-only SQL (`SELECT/SHOW/EXPLAIN/DESCRIBE`) with row caps
-
-### Break-glass mutations (disabled by default)
-- `artisan_optimize_clear` — `php artisan optimize:clear`
-- `artisan_config_cache` — `php artisan config:cache`
-- `artisan_queue_restart` — `php artisan queue:restart`
-- `artisan_queue_retry` — `php artisan queue:retry <ids|all>`
-- `artisan_pulse_restart` — `php artisan pulse:restart` (if installed)
-
-Both are **double-gated**:
-1) Local: `LARAVEL_PROD_ENABLE_MUTATIONS=1`
-2) Remote: `LARAVEL_DIAG_ENABLE_MUTATIONS=1`
-
----
-
-## Requirements
-
-### Local
-- Node.js >= 18
-- Codex CLI installed
-- SSH access to prod
-
-### Remote (production host)
-- PHP CLI available (for the runner)
-- Common utilities: `sh`, `tail`, `grep`, `df`, `ps`, `curl` (or at least curl for `health`)
-- A dedicated locked-down user (recommended)
-
----
-
-## Install (local)
+The recommended setup path is the interactive installer:
 
 ```bash
-git clone <your-repo-url> laravel-prod-mcp
-cd laravel-prod-mcp
-npm install
+npx @alemil/laravel-debug-mcp init
 ```
 
-### Build output
-This repo can run in two modes:
+The wizard asks for the profile name, server host, SSH setup user, Laravel app path, diagnostic user, SSH key choice, Codex configuration preference, and mutation policy. It then:
 
-**A) Dev/TS mode (recommended initially):**
-```bash
-npm run dev
-# (runs: tsx src/index.ts)
-```
+1. creates or reuses a dedicated local Ed25519 key;
+2. connects to the server over SSH;
+3. creates the diagnostic user when needed;
+4. installs `/usr/local/bin/laravel-diag`;
+5. writes `/etc/laravel-diag.env` as `root:<diag-user>` with mode `0640`;
+6. installs the public key in `~<diag-user>/.ssh/authorized_keys` with a forced command;
+7. saves a local profile under `~/.config/laravel-debug-mcp/profiles/`;
+8. runs `codex mcp add` when Codex CLI is available;
+9. runs `doctor` smoke checks.
 
-**B) Built JS mode (recommended once stable):**
-```bash
-npm run build
-ls -la dist/index.js
-npm start
-# (runs: node dist/index.js)
-```
-
-> If `dist/index.js` does not exist after `npm run build`, use TS mode (`npm run dev`) and point Codex to `tsx src/index.ts`.
-
----
-
-## Install (remote / production)
-
-### 1) Create a restricted user (recommended)
-
-Example (Ubuntu/Debian):
-```bash
-sudo adduser --disabled-password --gecos "" codexdiag
-```
-
-### 2) Install the remote runner
-
-Copy the runner to the server (or use your deployment mechanism):
-```bash
-# from your local machine
-scp scripts/remote/laravel-diag root@prod.example.com:/tmp/laravel-diag
-scp scripts/remote/laravel-diag.env.example root@prod.example.com:/tmp/laravel-diag.env.example
-```
-
-On the server:
-```bash
-sudo install -m 0755 /tmp/laravel-diag /usr/local/bin/laravel-diag
-sudo install -m 0640 /tmp/laravel-diag.env.example /etc/laravel-diag.env
-sudo nano /etc/laravel-diag.env   # set LARAVEL_DIAG_APP_DIR etc
-```
-
-(Alternatively run `scripts/remote/install-remote.sh` as root.)
-
-### 3) Configure `/etc/laravel-diag.env` (REQUIRED)
-At minimum you must set:
-
-```env
-LARAVEL_DIAG_APP_DIR=/absolute/path/to/your/app   # folder where artisan lives
-```
-
-Example:
-```env
-LARAVEL_DIAG_APP_DIR=/home/easytoday/domains/app.easytoday.se/app
-LARAVEL_DIAG_LOG_DIR=/home/easytoday/domains/app.easytoday.se/app/storage/logs
-LARAVEL_DIAG_ARTISAN=/home/easytoday/domains/app.easytoday.se/app/artisan
-LARAVEL_DIAG_PHP_BIN=php
-LARAVEL_DIAG_HEALTH_URL=http://127.0.0.1/up
-LARAVEL_DIAG_TIMEOUT_SEC=25
-LARAVEL_DIAG_MAX_OUTPUT_CHARS=200000
-LARAVEL_DIAG_ENABLE_MUTATIONS=0
-```
-
-### 4) Permissions note (DirectAdmin/common hosting)
-The SSH user must be able to **traverse** (`+x`) and (for artisan) **read** the app directory.
-
-On some DirectAdmin setups, `/home/<user>/domains` is group-restricted (e.g. group `access`).
-If you see `Permission denied` when checking the app path as `codexdiag`, add it to that group:
+You can also install globally:
 
 ```bash
-sudo usermod -aG access codexdiag
-# then reconnect SSH so the new group is active
+npm install -g @alemil/laravel-debug-mcp
+laravel-debug-mcp init
 ```
 
-Verify:
-```bash
-ssh codexdiag@prod.example.com 'id'
-ssh codexdiag@prod.example.com 'ls -la /path/to/app/artisan'
-```
+## Non-interactive / CI setup
 
-### 5) SSH hardening (strongly recommended)
-Put your public key in `~codexdiag/.ssh/authorized_keys` and use **forced command**.
-
-See `scripts/remote/authorized_keys.example`.
-
-This makes OpenSSH always execute `/usr/local/bin/laravel-diag` (and ignore any client-supplied command).
-
----
-
-## Configure the MCP server (local)
-
-Create `.env` in the repo root (copy from `.env.example`):
+Use `--config --yes` for repeatable setup from CI/CD or a checked-in non-secret config file:
 
 ```bash
-cp .env.example .env
-nano .env
+laravel-debug-mcp init --config ./laravel-debug-mcp.prod.json --yes
 ```
 
-Minimal:
+Example config:
+
+```json
+{
+  "profile": "easytoday-prod",
+  "host": "app.easytoday.se",
+  "port": 22,
+  "setupUser": "root",
+  "diagUser": "codexdiag",
+  "appDir": "/home/easytoday/domains/app.easytoday.se/app",
+  "healthUrl": "http://127.0.0.1/up",
+  "enableMutations": false,
+  "codex": {
+    "configure": true,
+    "serverName": "laravelProdEasyToday"
+  }
+}
+```
+
+Keep SSH private keys in your CI secret store. Do not commit secrets to this repository.
+
+## CLI commands
+
+```bash
+laravel-debug-mcp init [--profile <name>] [--config <path>] [--yes] [--dry-run]
+laravel-debug-mcp doctor --profile <name>
+laravel-debug-mcp rotate-key --profile <name>
+```
+
+`rotate-key` generates a new per-profile key, installs it with the same forced-command bootstrap, updates the local profile and Codex MCP entry, runs `doctor`, and removes the previous public key from `authorized_keys` after verification.
+
+## Doctor checks
+
+After installation, run:
+
+```bash
+laravel-debug-mcp doctor --profile easytoday-prod
+```
+
+`doctor` validates local prerequisites and performs remote smoke checks:
+
+- Node.js version;
+- SSH binary availability;
+- private key existence and permissions;
+- remote `sys.info` action;
+- Laravel `health` action;
+- `artisan.version` action.
+
+## Local profile format
+
+Profiles are written to:
+
+```text
+~/.config/laravel-debug-mcp/profiles/<profile>.json
+```
+
+A profile contains the host, port, diagnostic user, key path, remote command, mutation policy, output caps, timeout, and Codex server name. The MCP server still reads runtime configuration through `LARAVEL_PROD_*` environment variables, which makes Codex and CI integration straightforward.
+
+## Manual remote install
+
+The full installer is preferred, but the legacy helper remains available:
+
+```bash
+sudo DIAG_USER=codexdiag scripts/remote/install-remote.sh
+```
+
+Then edit `/etc/laravel-diag.env` and configure SSH authorized keys manually. The full `init` flow does this automatically.
+
+## MCP server environment variables
+
+When running the MCP server directly, provide at least:
+
 ```env
 LARAVEL_PROD_HOST=prod.example.com
 LARAVEL_PROD_USER=codexdiag
-LARAVEL_PROD_SSH_KEY=/home/alex/.ssh/codexdiag_ed25519
+LARAVEL_PROD_SSH_KEY=/home/alex/.ssh/laravel-debug-mcp/prod_ed25519
 ```
 
----
+Optional variables:
 
-## Connect Codex CLI to this MCP server
+```env
+LARAVEL_PROD_SSH_PORT=22
+LARAVEL_PROD_REMOTE_COMMAND=/usr/local/bin/laravel-diag
+LARAVEL_PROD_TOOL_TIMEOUT_SEC=45
+LARAVEL_PROD_MAX_OUTPUT_CHARS=200000
+LARAVEL_PROD_ENABLE_MUTATIONS=0
+```
 
-### Option A: Using `codex mcp add` (recommended)
+## Available diagnostics
 
-**TS/dev mode (recommended initially):**
+### App / Laravel
+
+- `health`
+- `artisan_version`
+- `artisan_about`
+- `artisan_migrate_status`
+- `artisan_schedule_list`
+- `artisan_queue_failed`
+- `artisan_horizon_status`
+- `file_list`
+- `file_read`
+- `env_read`
+
+### Logs
+
+- `logs_list`
+- `logs_tail`
+- `logs_grep`
+- `logs_last_error`
+
+### System
+
+- `sys_info`
+- `sys_disk`
+- `sys_memory`
+- `sys_top`
+- `php_version`
+- `php_extensions`
+
+### Laravel cache artifacts
+
+- `cache_status`
+
+### Database read-only
+
+- `database_connections`
+- `database_schema`
+- `database_query` (`SELECT`, `SHOW`, `EXPLAIN`, and `DESCRIBE` only)
+
+### Break-glass mutations
+
+Mutations are disabled by default and double-gated locally and remotely:
+
+1. local MCP config: `LARAVEL_PROD_ENABLE_MUTATIONS=1`
+2. remote runner config: `LARAVEL_DIAG_ENABLE_MUTATIONS=1`
+
+Mutation tools:
+
+- `artisan_optimize_clear`
+- `artisan_config_cache`
+- `artisan_queue_restart`
+- `artisan_queue_retry`
+- `artisan_pulse_restart`
+
+## SSH hardening
+
+The installer writes authorized keys in this form:
+
+```text
+command="/usr/local/bin/laravel-diag",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA...
+```
+
+This makes OpenSSH run only the diagnostic runner for that key, even if the client asks for a shell or another command.
+
+## Development
+
 ```bash
-codex mcp add laravelProd   --env LARAVEL_PROD_HOST=prod.example.com   --env LARAVEL_PROD_USER=codexdiag   --env LARAVEL_PROD_SSH_KEY=/home/alex/.ssh/codexdiag_ed25519   -- npx tsx /ABS/PATH/laravel-prod-mcp/src/index.ts
+npm install
+npm run typecheck
+npm run build
+node dist/cli.js --help
 ```
-
-**Built JS mode (once `dist/index.js` exists):**
-```bash
-codex mcp add laravelProd   --env LARAVEL_PROD_HOST=prod.example.com   --env LARAVEL_PROD_USER=codexdiag   --env LARAVEL_PROD_SSH_KEY=/home/alex/.ssh/codexdiag_ed25519   -- node /ABS/PATH/laravel-prod-mcp/dist/index.js
-```
-
-### Option B: Edit `~/.codex/config.toml`
-
-> Important: `enabled_tools` must be under `[mcp_servers.laravelProd]` (NOT under `.env`).
-
-**TS/dev mode:**
-```toml
-[mcp_servers.laravelProd]
-command = "npx"
-args = ["tsx", "/ABS/PATH/laravel-prod-mcp/src/index.ts"]
-startup_timeout_sec = 20
-tool_timeout_sec = 60
-
-enabled_tools = [
-  "health",
-  "logs_list",
-  "logs_tail",
-  "logs_grep",
-  "logs_last_error",
-  "sys_info",
-  "sys_disk",
-  "sys_memory",
-  "sys_top",
-  "php_version",
-  "php_extensions",
-  "cache_status",
-  "file_list",
-  "file_read",
-  "env_read",
-  "database_connections",
-  "database_schema",
-  "database_query",
-  "artisan_version",
-  "artisan_about",
-  "artisan_migrate_status",
-  "artisan_schedule_list",
-  "artisan_queue_failed",
-  "artisan_horizon_status",
-]
-
-[mcp_servers.laravelProd.env]
-LARAVEL_PROD_HOST = "prod.example.com"
-LARAVEL_PROD_USER = "codexdiag"
-LARAVEL_PROD_SSH_KEY = "/home/alex/.ssh/codexdiag_ed25519"
-```
-
-**Built JS mode:**
-```toml
-[mcp_servers.laravelProd]
-command = "node"
-args = ["/ABS/PATH/laravel-prod-mcp/dist/index.js"]
-startup_timeout_sec = 20
-tool_timeout_sec = 60
-
-enabled_tools = [
-  "health",
-  "logs_list",
-  "logs_tail",
-  "logs_grep",
-  "logs_last_error",
-  "sys_info",
-  "sys_disk",
-  "sys_memory",
-  "sys_top",
-  "php_version",
-  "php_extensions",
-  "cache_status",
-  "file_list",
-  "file_read",
-  "env_read",
-  "database_connections",
-  "database_schema",
-  "database_query",
-  "artisan_version",
-  "artisan_about",
-  "artisan_migrate_status",
-  "artisan_schedule_list",
-  "artisan_queue_failed",
-  "artisan_horizon_status",
-]
-
-[mcp_servers.laravelProd.env]
-LARAVEL_PROD_HOST = "prod.example.com"
-LARAVEL_PROD_USER = "codexdiag"
-LARAVEL_PROD_SSH_KEY = "/home/alex/.ssh/codexdiag_ed25519"
-```
-
----
-
-## Operational notes
-
-### Where is `/up` coming from?
-Laravel provides a built-in health endpoint at `/up` in modern skeletons.
-
-### Keep APP_DEBUG off in prod
-The toolset assumes you are debugging via logs/diagnostics, not by enabling APP_DEBUG.
-
-### Output size, timeouts
-Both the MCP server and remote runner enforce timeouts and output caps.
-
----
-
-## Troubleshooting
-
-### MCP handshake fails
-- Ensure the MCP server does **not** print to stdout (only JSON-RPC). Use stderr for logs.
-- Verify the entrypoint path exists:
-  - TS mode: `src/index.ts`
-  - Built mode: `dist/index.js` after `npm run build`
-
-### SSH connectivity
-Confirm SSH works non-interactively:
-```bash
-ssh -i /path/to/key codexdiag@prod.example.com 'echo ok'
-```
-
-If you use forced-command, running `ssh codexdiag@prod.example.com` will wait for JSON input; this is expected.
-
-### `Invalid app dir` / permission denied
-- Verify `codexdiag` can traverse the full path to your app:
-  ```bash
-  ssh codexdiag@prod.example.com 'namei -l /path/to/app'
-  ```
-- On DirectAdmin, you may need:
-  ```bash
-  sudo usermod -aG access codexdiag
-  ```
-
-### `health` fails
-- Confirm `curl` exists on the server.
-- Confirm the health URL is loopback and reachable from the server:
-  ```bash
-  curl -i http://127.0.0.1/up
-  ```
-
-### Artisan commands fail
-- Confirm PHP CLI is available.
-- Confirm the SSH user has permission to read the app and run `php artisan ...`.
-- Confirm `LARAVEL_DIAG_APP_DIR` points at the correct release/current symlink.
-
----
-
-## Security checklist
-- Use a **dedicated SSH user**
-- Use **forced-command** in `authorized_keys`
-- Keep this toolset **read-only**; enable mutations only for break-glass situations
-- Redact secrets; still treat outputs as sensitive
-- File reads are restricted to files that resolve under app root (`LARAVEL_DIAG_APP_DIR`)
-- SQL execution is restricted to read-only allowlisted statements
-
----
-
-## License
-MIT
