@@ -209,7 +209,7 @@ node dist/cli.js --help
 
 ## Versioning
 
-Current version: `0.0.1-rc.1`.
+Current version: `0.1.0c.1`.
 
 Keep these version values in sync before every release:
 
@@ -224,7 +224,7 @@ The release verifier checks the package name, public package status, semver form
 npm run release:verify
 ```
 
-For a release candidate, use a semver prerelease version such as `0.0.1-rc.1` and publish the GitHub Release as a prerelease. For a stable release, use a plain semver version such as `0.0.1` and publish the GitHub Release as a stable release.
+For a release candidate, use a semver prerelease version such as `0.1.0c.1` and publish the GitHub Release as a prerelease. For a stable release, use a plain semver version such as `0.0.1` and publish the GitHub Release as a stable release.
 
 ## Release
 
@@ -242,7 +242,7 @@ Release checklist:
    ```
 
 3. Commit the release changes.
-4. Create and publish a GitHub Release whose tag is exactly `v<package.json version>`, for example `v0.0.1-rc.1`.
+4. Create and publish a GitHub Release whose tag is exactly `v<package.json version>`, for example `v0.1.0c.1`.
 
 The CI workflow runs on pull requests and pushes to `main`. It installs dependencies, verifies release metadata, typechecks, builds, and checks the package contents with `npm pack --dry-run`.
 
