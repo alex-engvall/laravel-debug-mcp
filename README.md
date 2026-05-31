@@ -198,6 +198,21 @@ command="/usr/local/bin/laravel-diag",no-port-forwarding,no-X11-forwarding,no-ag
 
 This makes OpenSSH run only the diagnostic runner for that key, even if the client asks for a shell or another command.
 
+## Release and npm publishing
+
+Releases are managed through three GitHub Actions workflows:
+
+1. Run **Prepare release** (`.github/workflows/prepare-release.yml`) from GitHub Actions and choose `patch`, `minor`, `major`, `prerelease`, or `custom`. The workflow updates `package.json` and `package-lock.json`, verifies the package, and opens a release PR.
+2. Merge the release PR, then run **Create GitHub release** (`.github/workflows/create-release.yml`) with the matching version, for example `0.2.1`. The workflow validates the version, creates tag `v0.2.1`, and publishes the GitHub Release.
+3. Publishing that GitHub Release automatically runs `.github/workflows/publish-npm.yml` and publishes the package to npm.
+
+The create and publish workflows check that the GitHub Release tag, `package.json`, `package-lock.json`, and GitHub prerelease flag all agree before publishing. The publish workflow also verifies that the package version does not already exist on npm, runs `typecheck`, builds the package, and performs an `npm pack --dry-run`. Stable releases publish with the `latest` npm dist-tag, and prereleases publish with `next`.
+
+Before the first automated release, configure npm publishing in one of these ways:
+
+- Recommended: add this repository workflow as an npm trusted publisher for `@alexengvall/laravel-debug-mcp`.
+- Fallback: create a GitHub Actions secret named `NPM_TOKEN` with an npm automation token that can publish the package.
+
 ## Development
 
 ```bash
