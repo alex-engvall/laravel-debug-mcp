@@ -206,3 +206,59 @@ npm run typecheck
 npm run build
 node dist/cli.js --help
 ```
+
+## Versioning
+
+Current version: `0.0.1-rc.1`.
+
+Keep these version values in sync before every release:
+
+- `package.json`
+- `package-lock.json`
+- `src/cli.ts`
+- `src/index.ts`
+
+The release verifier checks the package name, public package status, semver format, GitHub release tag, prerelease/stable release type, CLI version, and MCP server version:
+
+```bash
+npm run release:verify
+```
+
+For a release candidate, use a semver prerelease version such as `0.0.1-rc.1` and publish the GitHub Release as a prerelease. For a stable release, use a plain semver version such as `0.0.1` and publish the GitHub Release as a stable release.
+
+## Release
+
+Release checklist:
+
+1. Update the package version and matching source versions.
+2. Run local verification:
+
+   ```bash
+   npm ci
+   npm run release:verify
+   npm run typecheck
+   npm run build
+   npm pack --dry-run
+   ```
+
+3. Commit the release changes.
+4. Create and publish a GitHub Release whose tag is exactly `v<package.json version>`, for example `v0.0.1-rc.1`.
+
+The CI workflow runs on pull requests and pushes to `main`. It installs dependencies, verifies release metadata, typechecks, builds, and checks the package contents with `npm pack --dry-run`.
+
+## Publishing
+
+Publishing is handled by `.github/workflows/npm-publish.yml` when a GitHub Release is published.
+
+The publish workflow:
+
+- verifies that the release tag matches `v<package.json version>`;
+- verifies that GitHub prereleases use semver prerelease versions;
+- verifies that stable GitHub releases use stable semver versions;
+- runs `npm run typecheck`;
+- checks package contents with `npm pack --dry-run`;
+- publishes to npm with provenance using `npm publish --access public --provenance`.
+
+GitHub prereleases are published to npm with the `next` dist-tag. Stable GitHub releases are published with the `latest` dist-tag.
+
+The workflow expects npm trusted publishing/OIDC to be configured for `@alex-engvall/laravel-debug-mcp` because it uses `id-token: write` and does not read an npm token from repository secrets.

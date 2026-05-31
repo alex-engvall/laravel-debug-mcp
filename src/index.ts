@@ -12,7 +12,7 @@ function log(...args: any[]) {
 async function main() {
   const server = new McpServer({
     name: "laravel-debug-mcp",
-    version: "0.2.0",
+    version: "0.0.1-rc.1",
   });
 
   registerAllTools(server, config.ssh, config.policy);
