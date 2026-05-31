@@ -6,13 +6,13 @@ import { registerAllTools } from "./tools/register.js";
 
 function log(...args: any[]) {
   // Never write to stdout; stdout is reserved for MCP JSON-RPC.
-  console.error("[laravel-prod-mcp]", ...args);
+  console.error("[laravel-debug-mcp]", ...args);
 }
 
 async function main() {
   const server = new McpServer({
-    name: "laravel-prod",
-    version: "0.1.0",
+    name: "laravel-debug-mcp",
+    version: "0.2.0",
   });
 
   registerAllTools(server, config.ssh, config.policy);
@@ -26,6 +26,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[laravel-prod-mcp] Fatal:", err);
+  console.error("[laravel-debug-mcp] Fatal:", err);
   process.exit(1);
 });
