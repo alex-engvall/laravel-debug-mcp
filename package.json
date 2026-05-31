@@ -1,6 +1,6 @@
 {
   "name": "@alex-engvall/laravel-debug-mcp",
-  "version": "0.2.0",
+  "version": "0.0.0-rc-1",
   "private": false,
   "type": "module",
   "description": "Interactive installer and production-safe MCP server for debugging Laravel apps via a hardened SSH diagnostic runner.",
